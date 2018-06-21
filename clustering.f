@@ -28,7 +28,7 @@ c     Sort the data points
       close (1)
       do i = 1, numData
          do j = i, numData
-            if (dataPoints(i) .gt. dataPoints(j)) then
+            if (dataPoints(i) > dataPoints(j)) then
                temp = dataPoints(i)
                dataPoints(i) = dataPoints(j)
                dataPoints(j) = temp
@@ -47,13 +47,19 @@ c     Cluster the data
       do i = 1, numGroups
          write (2,*) "Cluster", i, ":"
          do j = 1, groupSize
-            write (2,*) dataPoints(k)
+            if (dataPoints(k) > -0.1 .and. dataPoints(k) < 0.1) then
+               write (2, '(ES15.7)') dataPoints(k)
+            else
+               write (2, '(F11.7)') dataPoints(k)
+            end if
             k = k + 1
          end do
       end do
-      write (2,*) "Remainder cluster:"
-      do i = k, numData
-         write (2,*) dataPoints(i)
-      end do
+      if (k .lt. numData) then
+         write (2,*) "Remainder cluster:"
+         do i = k, numData
+            write (2,*) dataPoints(i)
+         end do
+      end if
       close (2)
       end
