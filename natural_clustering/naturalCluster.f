@@ -26,7 +26,7 @@ c     Read and sort the data points
       close (1)
       do i = 1, numData
          do j = i, numData
-            if (dataPoints(i) .gt. dataPoints(j)) then
+            if (dataPoints(i) > dataPoints(j)) then
                temp = dataPoints(i)
                dataPoints(i) = dataPoints(j)
                dataPoints(j) = temp
@@ -43,20 +43,29 @@ c     Determine the metric
          metric = metric + pointGap(i)
       end do
       metric = metric / (numData - 1)
+      metric = metric + (metric / 3)
 
 c     Cluster the data
       print *, "What file will the data be clustered into?"
       read *, clusteredFile
       j = 1
       open (2, file = clusteredFile)
-      write (2,*) "Cluster", j, ":"
+      write (2, '(A8, I5, A1)') "Cluster", j, ":"
       do i = 1, numData
-         if (pointGap(i - 1) .gt. metric) then
+         if (pointGap(i - 1) > metric) then
             j = j + 1
-            write (2,*) "Cluster", j, ":"
-            write (2,*) dataPoints(i)
+            write (2, '(A8, I5, A1)') "Cluster", j, ":"
+               if (dataPoints(i) > -0.1 .and. dataPoints(i) < 0.1) then
+                  write (2, '(ES16.7)') dataPoints(i)
+               else
+                  write (2, '(F12.7)') dataPoints(i)
+               end if
          else
-            write (2,*) dataPoints(i)
+            if (dataPoints(i) > -0.1 .and. dataPoints(i) < 0.1) then
+               write (2, '(ES16.7)') dataPoints(i)
+            else
+               write (2, '(F12.7)') dataPoints(i)
+            end if
          end if
       end do
       close (2)
