@@ -2,7 +2,7 @@
       real, allocatable :: dataPoints(:)
       real :: temp
       character(len=100) :: dataFile, clusteredFile
-      integer :: numGroups, numData, groupSize, i, j, k
+      integer :: numGroups, numData, groupSize, idWidth, i, j, k
 
 c     This program reads a data file and clusters the data into a certain number of groups
       print *, "What file is the data being read from?"
@@ -45,12 +45,13 @@ c     Cluster the data
       k = 1
       open (2, file = clusteredFile)
       do i = 1, numGroups
-         write (2,*) "Cluster", i, ":"
+         idWidth = i + 1
+         write (2, '(A8, I5, A1)') "Cluster", i, ":"
          do j = 1, groupSize
             if (dataPoints(k) > -0.1 .and. dataPoints(k) < 0.1) then
-               write (2, '(ES15.7)') dataPoints(k)
+               write (2, '(ES16.7)') dataPoints(k)
             else
-               write (2, '(F11.7)') dataPoints(k)
+               write (2, '(F12.7)') dataPoints(k)
             end if
             k = k + 1
          end do
