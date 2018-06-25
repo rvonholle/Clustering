@@ -1,13 +1,21 @@
       program naturalCluster
       real, allocatable :: dataPoints(:)
       real, allocatable :: pointGap(:)
-      real :: metric, temp
+      real :: metric, temp, histRange, rangeLimit
       character(len=100) :: dataFile, clusteredFile
-      integer :: numData, i, j
+      integer :: numData, numBins, i, j, k, fivesCounter
 
 c     This program reads a data file and clusters the data into natural clusters
       print *, "What file is the data being read from?"
       read *, dataFile
+      print *, "What file will the data be clustered into?"
+      read *, clusteredFile
+      print *, "A histogram of the data will be displayed."
+      print *, "How many bins will be in the histogram?"
+      read *, numBins
+      print *,
+      print *, "Key:"
+      print *, "#=5 data points, *=1 data point, |=gap between clusters"
 
 c     Read and sort the data points
       numData = 0
@@ -34,7 +42,7 @@ c     Read and sort the data points
          end do
       end do
 
-c     Determine the metric
+c     Determine the metric and the histogram range
       metric = 0
       do i = 1, (numData - 1)
          pointGap(i) = dataPoints(i + 1) - dataPoints(i)
@@ -43,30 +51,90 @@ c     Determine the metric
          metric = metric + pointGap(i)
       end do
       metric = metric / (numData - 1)
-      metric = metric + (metric / 3)
+      metric = metric * 2
+      histRange = dataPoints(numData) - dataPoints(1)
+      histRange = histRange / numBins
 
-c     Cluster the data
-      print *, "What file will the data be clustered into?"
-      read *, clusteredFile
+c     Cluster the data and create the histogram
       j = 1
+      fivesCounter = 0
+      rangeLimit = dataPoints(1) + histRange
       open (2, file = clusteredFile)
       write (2, '(A8, I5, A1)') "Cluster", j, ":"
+      if (dataPoints(1) > -0.1 .and. dataPoints(1) < 0.1) then
+         write (*, '(A1, ES13.7)', Advance = 'No') "[", dataPoints(1)
+         if (rangeLimit > -0.1 .and. rangelimit < 0.1) then
+            write(*,'(A1,ES13.7,A2)',Advance='No') ",", rangeLimit, "):"
+         else
+            write(*,'(A1,F9.7,A2)',Advance='No') ",", rangeLimit, "):"
+         end if
+      else
+         write (*, '(A1, F12.7)', Advance = 'No') "[", dataPoints(1)
+         if (rangeLimit > -0.1 .and. rangeLimit < 0.1) then
+            write(*,'(A1,ES13.7,A2)',Advance='No') ",", rangeLimit, "):"
+         else
+            write(*,'(A1,F9.7,A2)',Advance='No') ",", rangeLimit, "):"
+         end if
+      end if
       do i = 1, numData
+         if (dataPoints(i) > rangeLimit) then
+            if (fivesCounter < 5) then
+               do k = 1, fivesCounter
+                  write (*, '(A1)', Advance = 'No') "*"
+               end do
+            else if (fivesCounter == 5) then
+               write (*, '(A1)', Advance = 'No') "#"
+            end if
+            fivesCounter = 0
+            write (*,*)
+            if (rangeLimit + histRange < dataPoints(numData)) then
+              if (rangeLimit > -0.1 .and. rangeLimit < 0.1) then
+                write(*,'(A1,ES13.7,A1)',Advance='No')"[",rangeLimit,","
+              else
+                 write(*,'(A1,F9.7,A2)',Advance='No')"[",rangeLimit,","
+              end if
+              rangeLimit = rangeLimit + histRange
+              if (rangeLimit > -0.1 .and. rangeLimit < 0.1) then
+                 write(*,'(ES13.7,A2)',Advance='No') rangeLimit, "):"
+              else 
+                 write (*, '(F9.7, A2)', Advance='No') rangeLimit, "):"
+              end if
+            end if
+         end if
+         fivesCounter = fivesCounter + 1
          if (pointGap(i - 1) > metric) then
             j = j + 1
             write (2, '(A8, I5, A1)') "Cluster", j, ":"
-               if (dataPoints(i) > -0.1 .and. dataPoints(i) < 0.1) then
-                  write (2, '(ES16.7)') dataPoints(i)
-               else
-                  write (2, '(F12.7)') dataPoints(i)
-               end if
+            if (fivesCounter < 5) then
+               do k = 1, fivesCounter
+                  write (*, '(A1)', Advance = 'No') "*"
+               end do
+            else if (fivesCounter == 5) then
+               write (*, '(A1)', Advance = 'No') "#"
+            end if
+            fivesCounter = 0
+            write (*, '(A1)', Advance = 'No') "|"
+            if (dataPoints(i) > -0.1 .and. dataPoints(i) < 0.1) then
+               write (2, '(ES16.7)') dataPoints(i)
+            else
+               write (2, '(F12.7)') dataPoints(i)
+            end if
+            if (fivesCounter == 5) then
+               write (*, '(A1)', Advance = 'No') "#"
+               fivesCounter = 0
+            end if
          else
             if (dataPoints(i) > -0.1 .and. dataPoints(i) < 0.1) then
                write (2, '(ES16.7)') dataPoints(i)
             else
                write (2, '(F12.7)') dataPoints(i)
             end if
+            if (fivesCounter == 5) then
+               write (*, '(A1)', Advance = 'No') "#"
+               fivesCounter = 0
+            end if
          end if
       end do
       close (2)
+      write (*,*)
       end
