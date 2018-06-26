@@ -15,7 +15,7 @@ c     This program reads a data file and clusters the data into natural clusters
       read *, numBins
       print *,
       print *, "Key:"
-      print *, "#=5 data points, *=1 data point, |=gap between clusters"
+      print *, "#=5 data points, |=gap between clusters"
 
 c     Read and sort the data points
       numData = 0
@@ -78,12 +78,8 @@ c     Cluster the data and create the histogram
       end if
       do i = 1, numData
          if (dataPoints(i) > rangeLimit) then
-            if (fivesCounter < 5) then
-               do k = 1, fivesCounter
-                  write (*, '(A1)', Advance = 'No') "*"
-               end do
-            else if (fivesCounter == 5) then
-               write (*, '(A1)', Advance = 'No') "#"
+            if (fivesCounter > 0) then
+               write (*,'(A1)', Advance = 'No') "#"
             end if
             fivesCounter = 0
             write (*,*)
@@ -105,12 +101,8 @@ c     Cluster the data and create the histogram
          if (pointGap(i - 1) > metric) then
             j = j + 1
             write (2, '(A8, I5, A1)') "Cluster", j, ":"
-            if (fivesCounter < 5) then
-               do k = 1, fivesCounter
-                  write (*, '(A1)', Advance = 'No') "*"
-               end do
-            else if (fivesCounter == 5) then
-               write (*, '(A1)', Advance = 'No') "#"
+            if (fivesCounter > 0) then
+               write (*,'(A1)', Advance = 'No') "#"
             end if
             fivesCounter = 0
             write (*, '(A1)', Advance = 'No') "|"
