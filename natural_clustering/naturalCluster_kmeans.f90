@@ -25,12 +25,6 @@ program naturalCluster_kmeans
       write (*,*) "How many clusters will there be?"
       read *, numClusters
    end if
-   write (*,*) "A histogram of the data will be displayed."
-   write (*,*) "How many bins will be in the histogram?"
-   read *, numBins
-   write (*,*)
-   write (*,*) "Key:"
-   write (*,*) "# = 5 data points, | = gap between clusters"
 
 ! Read and sort the data points
    numData = 0
@@ -63,6 +57,28 @@ program naturalCluster_kmeans
    if (chooseClusters == "n") then
       numClusters_copy = sqrt(numData_copy / 2)
       numClusters = nint(numClusters_copy)
+   else
+      do while (numClusters >= numData .and. chooseClusters /= 'n')
+         do while (numClusters > numData)
+            write (*,*) "There are more clusters than there is data."
+            write (*,*) "Please choose a smaller number of clusters."
+            read *, numClusters
+         end do
+         do while (numClusters == numData)
+            write (*,*) "Each data point will be in its own cluster."
+            write (*,*) "This can be avoided if the number of clusters is smaller."
+            write (*,*) "Would you like to choose a smaller number of clusters (y/n)?"
+            read *, chooseClusters
+            do while (chooseClusters /= 'y' .and. chooseClusters /= 'n')
+               write (*,*) "Please enter y (yes) or n (no)."
+               read *, chooseClusters
+            end do
+            if (chooseClusters == 'y') then
+               write (*,*) "How many clusters will there be?"
+               read *, numClusters
+            end if
+         end do
+      end do
    end if
    allocate(clusters(numClusters+1,numData+1))
    allocate(tempList_1(numData+1))
@@ -110,11 +126,17 @@ program naturalCluster_kmeans
          end if
       end do
    else
+      write (*,*) "A histogram of the data will be displayed."
+      write (*,*) "How many bins will be in the histogram?"
+      read *, numBins
+      write (*,*)
+      write (*,*) "Key:"
+      write (*,*) "# = 5 data points, | = gap between clusters"
       m = 0
       n = 0
       fivesCounter = 0
       rangeLimit = dataPoints(1) + histRange
-      if (abs(dataPoints(1)) < 0.1 .or. abs(dataPoints(1) >= 1e7) then
+      if (abs(dataPoints(1)) < 0.1 .or. abs(dataPoints(1)) >= 1e7) then
          write (*, '(A1, ES13.7, A1)', Advance = 'No') "[", dataPoints(1), ","
       else
          write (*, '(A1, F9.7, A1)', Advance = 'No') "[", dataPoints(1), ","
@@ -163,7 +185,7 @@ program naturalCluster_kmeans
                      end if
                      fivesCounter = 0
                   end if
-                  if (abs(tempList_1(j)) < 0.1 .or. abs(tempList_1(j) >= 1e7) then
+                  if (abs(tempList_1(j)) < 0.1 .or. abs(tempList_1(j)) >= 1e7) then
                      write (2, '(ES16.7)') tempList_1(j)
                   else
                      write (2, '(F12.7)') tempList_1(j)
