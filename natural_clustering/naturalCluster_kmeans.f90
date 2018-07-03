@@ -52,8 +52,6 @@ program naturalCluster_kmeans
    end do
 
 ! Determine number of clusters and histogram range
-   histRange = dataPoints(numData) - dataPoints(1)
-   histRange = histRange / numBins
    if (chooseClusters == "n") then
       numClusters_copy = sqrt(numData_copy / 2)
       numClusters = nint(numClusters_copy)
@@ -135,6 +133,8 @@ program naturalCluster_kmeans
       m = 0
       n = 0
       fivesCounter = 0
+      histRange = dataPoints(numData) - dataPoints(1)
+      histRange = histRange / numBins
       rangeLimit = dataPoints(1) + histRange
       if (abs(dataPoints(1)) < 0.1 .or. abs(dataPoints(1)) >= 1e7) then
          write (*, '(A1, ES13.7, A1)', Advance = 'No') "[", dataPoints(1), ","
