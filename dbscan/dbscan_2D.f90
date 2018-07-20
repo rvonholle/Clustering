@@ -3,6 +3,7 @@ module MyPoints
       real :: x = 0
       real :: y = 0
       integer :: clID = 0
+      integer :: orig_pos = 0
       logical :: isCore = .false.
       logical :: unChecked = .true.
    end type Point
@@ -25,8 +26,9 @@ program dbscan_2D
    type(Point), allocatable :: points(:)
    type(Cluster), allocatable :: clusters(:)
    type(Cluster) :: tempCluster
+   real, dimension(:,:), allocatable :: dists(:,:)
    character(len=100) :: dataFile, clusteredFile
-   integer :: numData, numPoints, numClusters, temp, pointcount, i, j, k
+   integer :: numData, numPoints, numClusters, numChecked, temp, pointcount, i, j, k
    integer :: n
    type(Point) :: origin
    real :: EPS
@@ -55,42 +57,49 @@ program dbscan_2D
    open (1, file = dataFile)
    do i = 1, numData
       read (1,*) points(i)%x, points(i)%y
+      points(i)%orig_pos = i
    end do
    close (1)
    write (*,'(A16)') "Reading complete"
    write (*,*)
-   write (*,'(A23)') "Generating parameter..."
-   EPS = epsPick(points, MINPTS)
-   write (*,'(A19)') "Parameter generated"
+   write (*,'(A31)') "Generating EPSILON parameter..."
+   EPS = epsPick(points, MINPTS, dists)
+   write (*,'(A27)') "EPSILON parameter generated"
+   write (*,*) EPS
 
 ! Find the cores
+   numPoints = 0
    do i = 1, numData
       temp = 0
       do j = 1, numData
-         if (dist(points(i), points(j)) <= EPS) then
+         if (dists(i,j) <= EPS) then
             temp = temp + 1
          end if
       end do
       if (temp >= MINPTS) then
          points(i)%isCore = .true.
+         numPoints = numPoints + 1
       end if
    end do
+   write (*,*) numPoints
 
 ! Cluster the points
    write (*,*)
    write (*,'(A13)') "Clustering..."
    numClusters = 1
-   i = 1
+   numChecked = 0
    do i = 1, numData
-      if (points(i)%isCore .and. points(i)%unChecked .and. points(i)%clID == 0) then
+      if (points(i)%isCore .and. points(i)%unChecked) then
          points(i)%unChecked = .false.
+         numChecked = numChecked + 1
          points(i)%clID = numClusters
          numClusters = numClusters + 1
          call appendPoint(tempCluster%points, points(i))
          do j = 1, numData
             if (points(j)%isCore .and. i /= j .and. points(j)%unChecked .and. &
-                  points(j)%clID == 0 .and. dist(points(i), points(j)) <= EPS) then
+                  dists(i,j) <= EPS) then
                points(j)%unchecked = .false.
+               numChecked = numChecked + 1
                points(j)%clID = points(i)%clID
                call appendPoint(tempCluster%points, points(j))
             end if
@@ -100,17 +109,25 @@ program dbscan_2D
             temp = size(tempCluster%points)
             do j = 1, temp
                do k = 1, numData
-                  if (points(k)%unChecked .and. points(k)%clID==0 .and. &
-                        dist(tempCluster%points(j),points(k))<=EPS) then
+                  if (points(k)%unChecked .and. dists(tempCluster%points(j)%orig_pos,k)<=EPS) then
                      points(k)%unChecked = .false.
+                     numChecked = numChecked + 1
                      points(k)%clID = tempCluster%points(j)%clID
                      call appendPoint(tempCluster%points, points(k))
                   end if
                end do
             end do
-            if (size(tempCluster%points) == temp) then
+            if (size(tempCluster%points) == temp .and. temp >= MINPTS) then
                contCluster = .false.
                call appendCluster(clusters, tempCluster)
+               deallocate(tempCluster%points)
+               write (*,'(A10,I4,A10)') "Clustering", nint(100.0 * numChecked / size(points)), "% complete"
+            else if (size(tempCluster%points) == temp) then
+               contCluster = .false.
+               do j = 1, temp
+                  points(j)%isCore = .false.
+                  points(j)%clID = 0
+               end do
                deallocate(tempCluster%points)
             end if
          end do
@@ -119,9 +136,8 @@ program dbscan_2D
    do i = 1, numData
       do j = 1, size(clusters)
          do k = 1, size(clusters(j)%points)
-            if (points(i)%unChecked .and. dist(points(i), clusters(j)%points(k)) <= EPS &
+            if (points(i)%unChecked .and. dists(i,clusters(j)%points(k)%orig_pos) <= EPS &
                   .and. .not. points(i)%isCore) then
-               write(*,*) 'I got here???'
                points(i)%unChecked = .false.
                points(i)%clID = clusters(j)%points(k)%clID
                call appendPoint(clusters(j)%points, points(i))
@@ -173,9 +189,9 @@ program dbscan_2D
       do i = 1, numData
          if (points(i)%clID == 0 .and. .not. points(i)%isCore) then
             if (abs(points(i)%x) < 0.1 .or. abs(points(i)%x) > 1e6) then
-               write (2, 101, Advance = 'No') pointcount, -1, points(i)%x, ","
+               write (2, 101, Advance = 'No') pointcount, 0, points(i)%x, ","
             else
-               write (2, 102, Advance = 'No') pointcount, -1, points(i)%x, ","
+               write (2, 102, Advance = 'No') pointcount, 0, points(i)%x, ","
             end if
             if (abs(points(i)%y) < 0.1 .or. abs(points(i)%y) > 1e6) then
                write (2, '(ES13.7)') points(i)%y
@@ -193,49 +209,45 @@ program dbscan_2D
    102 Format(I5,1X,I5,F12.7,A1)
 contains
 
-subroutine sortReals(realList)
+! This subroutine sorts a list of real numbers
+recursive subroutine sortReals(list, low, high)
    use MyPoints
    use MyClusters
    implicit none
-   real, allocatable :: realList(:)
-   real :: temp
-   integer :: i, j
-   do i = 1, size(realList)
-      do j = i, size(realList)
-         if (realList(i) > realList(j)) then
-            temp = realList(i)
-            realList(i) = realList(j)
-            realList(j) = temp
-         end if
-      end do
-   end do
+   real, allocatable :: list(:)
+   integer :: low, high
+   integer :: partID = 0
+   if (low < high) then
+      call partition(list, low, high, partID)
+      call sortReals(list, low, partID - 1)
+      call sortReals(list, partID + 1, high)
+   end if
 end subroutine sortReals
 
-! This subroutine appends a real variable to a list of real variables
-subroutine appendReal(list, newReal)
+! This subroutine partitions a list of real numbers
+subroutine partition(list, low, high, partID)
    use MyPoints
    use MyClusters
    implicit none
-   integer :: i
-   real :: newReal
    real, allocatable :: list(:)
-   real, allocatable :: tempList(:)
-   if (allocated(list)) then
-      allocate(tempList(size(list) + 1))
-      do i = 1, size(list)
-         tempList(i) = list(i)
-      end do
-      tempList(size(list) + 1) = newReal
-      deallocate(list)
-      call move_alloc(tempList, list)
-      if (allocated(tempList)) then
-         deallocate(tempList)
+   integer :: low, high, partID
+   integer :: i, j
+   real :: pivot, temp
+   pivot = list(high)
+   i = (low - 1)
+   do j = low, high - 1
+      if (list(j) <= pivot) then
+         i = i + 1
+         temp = list(i)
+         list(i) = list(j)
+         list(j) = temp
       end if
-   else
-      allocate(list(1))
-      list(1) = newReal
-   end if
-end subroutine appendReal
+   end do
+   temp = list(i + 1)
+   list(i + 1) = list(high)
+   list(high) = temp
+   partID = i + 1
+end subroutine partition
 
 ! This subroutine appends a point to a list of points
 subroutine appendPoint(list, newPoint)
@@ -301,36 +313,56 @@ function dist(pointA, pointB)
 end function dist
 
 ! This function determines the optimal value of epsilon
-function epsPick(points, MINPTS)
+function epsPick(points, MINPTS, allDists)
    use MyPoints
    use MyClusters
    type(Point), allocatable :: points(:)
    integer :: MINPTS
    real :: epsPick
+   real, dimension(:,:), allocatable :: allDists(:,:)
    real, allocatable :: tempDists(:)
    real, allocatable :: dists(:)
-   real, allocatable :: distsPrime(:)
-   real, allocatable :: distsPrime2(:)
+   real, allocatable :: comps(:)
+   integer :: i, j
+   real :: lineMaker
+   allocate(allDists(size(points),size(points) - 1))
+   allocate(dists(size(points)))
    do i = 1, size(points)
-      do j = 1, size(points)
-         if (i /= j) then
-            call appendReal(tempDists, sqrt(dist(points(i), points(j))))
-         end if
+      allocate(tempDists(size(points) - 1))
+      do j = 1, i - 1
+         tempDists(j) = allDists(j,i)
       end do
-      call sortReals(tempDists)
-      call appendReal(dists, tempDists(MINPTS))
+      do j = i + 1, size(points)
+         tempDists(j - 1) = sqrt(dist(points(i), points(j)))
+      end do
+      do j = 1, size(tempDists)
+         allDists(i,j) = tempDists(j)
+      end do
+      call sortReals(tempDists, 1, size(tempDists))
+      dists(i) = tempDists(MINPTS)
+      do j = 1, size(tempDists)
+         allDists(i,j) = tempDists(j)
+      end do
       deallocate(tempDists)
+      if (nint(100.0 * i / size(points)) == 25 .and. &
+            nint(100.0 * (i - 1) / size(points)) /= 25) then
+         write (*,'(A26)') "Distance list 25% complete"
+      else if (nint(100.0 * i / size(points)) == 50 .and. &
+            nint(100.0 * (i - 1) / size(points)) /= 50) then
+         write (*,'(A26)') "Distance list 50% complete"
+      else if (nint(100.0 * i / size(points)) == 75 .and. &
+            nint(100.0 * (i - 1) / size(points)) /= 75) then
+         write (*,'(A26)') "Distance list 75% complete"
+      end if
    end do
-   do i = 2, size(dists) - 1
-      call appendReal(distSPrime, (dists(i + 1) - dists(i - 1)) / 2)
+   call sortReals(dists, 1, size(dists))
+   write (*,'(A22)') "Distance list created."
+   lineMaker = (dists(size(dists)) - dists(1)) / size(dists)
+   allocate(comps(size(dists)))
+   do i = 1, size(dists)
+      comps(i) = (dists(1) + (i - 1) * lineMaker) - dists(i)
    end do
-   do i = 2, size(distsPrime) - 1
-      call appendReal(distsPrime2, (distsPrime(i + 1) - distsPrime(i - 1)) / 2)
-   end do
-   do i = 1, size(distsPrime2)
-      distsPrime2(i) = abs(distsPrime2(i))
-   end do
-   epsPick = dists(maxloc(distsPrime2, 1) + 2)
+   epsPick = dists(maxloc(comps, 1))
 end function epsPick
 
 end program dbscan_2D
