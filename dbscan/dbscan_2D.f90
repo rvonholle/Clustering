@@ -93,7 +93,7 @@ program dbscan_2D
          call appendPoint(tempCluster%points, points(i))
          do j = 1, numData
             if (points(j)%isCore .and. i /= j .and. points(j)%unChecked .and. &
-                  dists(i,j) <= EPS) then
+                  dists(i,j) <= EPS .and. size(tempCluster%points) < MAXSIZE) then
                points(j)%unchecked = .false.
                numChecked = numChecked + 1
                points(j)%clID = points(i)%clID
@@ -105,7 +105,8 @@ program dbscan_2D
             temp = size(tempCluster%points)
             do j = 1, temp
                do k = 1, numData
-                  if (points(k)%unChecked .and. dists(tempCluster%points(j)%orig_pos,k)<=EPS) then
+                  if (points(k)%unChecked .and. dists(tempCluster%points(j)%orig_pos,k) <= EPS &
+                        .and. size(tempCluster%points) <= MAXSIZE) then
                      points(k)%unChecked = .false.
                      numChecked = numChecked + 1
                      points(k)%clID = tempCluster%points(j)%clID
@@ -133,7 +134,7 @@ program dbscan_2D
       do j = 1, size(clusters)
          do k = 1, size(clusters(j)%points)
             if (points(i)%unChecked .and. dists(i,clusters(j)%points(k)%orig_pos) <= EPS &
-                  .and. .not. points(i)%isCore) then
+                  .and. size(clusters(j)%points) < MAXSIZE .and. .not. points(i)%isCore) then
                points(i)%unChecked = .false.
                points(i)%clID = clusters(j)%points(k)%clID
                call appendPoint(clusters(j)%points, points(i))
