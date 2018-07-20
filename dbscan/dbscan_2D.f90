@@ -28,7 +28,7 @@ program dbscan_2D
    type(Cluster) :: tempCluster
    real, dimension(:,:), allocatable :: dists(:,:)
    character(len=100) :: dataFile, clusteredFile
-   integer :: numData, numPoints, numClusters, numChecked, temp, pointcount, i, j, k
+   integer :: numData,  numClusters, numChecked, temp, pointcount, i, j, k
    integer :: n
    type(Point) :: origin
    real :: EPS
@@ -65,10 +65,8 @@ program dbscan_2D
    write (*,'(A31)') "Generating EPSILON parameter..."
    EPS = epsPick(points, MINPTS, dists)
    write (*,'(A27)') "EPSILON parameter generated"
-   write (*,*) EPS
 
 ! Find the cores
-   numPoints = 0
    do i = 1, numData
       temp = 0
       do j = 1, numData
@@ -78,10 +76,8 @@ program dbscan_2D
       end do
       if (temp >= MINPTS) then
          points(i)%isCore = .true.
-         numPoints = numPoints + 1
       end if
    end do
-   write (*,*) numPoints
 
 ! Cluster the points
    write (*,*)
@@ -344,14 +340,14 @@ function epsPick(points, MINPTS, allDists)
          allDists(i,j) = tempDists(j)
       end do
       deallocate(tempDists)
-      if (nint(100.0 * i / size(points)) == 25 .and. &
-            nint(100.0 * (i - 1) / size(points)) /= 25) then
+      if (floor(100.0 * i / size(points)) == 25 .and. &
+            floor(100.0 * (i - 1) / size(points)) /= 25) then
          write (*,'(A26)') "Distance list 25% complete"
-      else if (nint(100.0 * i / size(points)) == 50 .and. &
-            nint(100.0 * (i - 1) / size(points)) /= 50) then
+      else if (floor(100.0 * i / size(points)) == 50 .and. &
+            floor(100.0 * (i - 1) / size(points)) /= 50) then
          write (*,'(A26)') "Distance list 50% complete"
-      else if (nint(100.0 * i / size(points)) == 75 .and. &
-            nint(100.0 * (i - 1) / size(points)) /= 75) then
+      else if (floor(100.0 * i / size(points)) == 75 .and. &
+            floor(100.0 * (i - 1) / size(points)) /= 75) then
          write (*,'(A26)') "Distance list 75% complete"
       end if
    end do
