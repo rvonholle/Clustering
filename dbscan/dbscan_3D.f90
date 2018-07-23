@@ -2,6 +2,7 @@ module MyPoints
    type Point
       real :: x = 0
       real :: y = 0
+      real :: z = 0
       integer :: clID = 0
       integer :: orig_pos = 0
       logical :: isCore = .false.
@@ -57,7 +58,7 @@ program dbscan_2D
    points(:) = origin
    open (1, file = dataFile)
    do i = 1, numData
-      read (1,*) points(i)%x, points(i)%y
+      read (1,*) points(i)%x, points(i)%y, points(i)%z
       points(i)%orig_pos = i
    end do
    close (1)
@@ -190,14 +191,19 @@ program dbscan_2D
 !         write (2,'(A7,I4,A1)') "Cluster", i, ":"
          do j = 1, size(clusters(i)%points)
             if (abs(clusters(i)%points(j)%x) < 0.1 .or. abs(clusters(i)%points(j)%x) > 1e6) then
-               write (2, 101, Advance = 'No') pointcount, i, clusters(i)%points(j)%x, ","
+               write (2, 101, Advance = 'No') pointcount, i, clusters(i)%points(j)%x
             else
-               write (2, 102, Advance = 'No') pointcount, i, clusters(i)%points(j)%x, ","
+               write (2, 102, Advance = 'No') pointcount, i, clusters(i)%points(j)%x
             end if
             if (abs(points(j)%y) < 0.1 .or. abs(points(j)%y) > 1e6) then
-               write (2, '(ES13.7)') clusters(i)%points(j)%y
+               write (2, '(ES13.7,3X)', Advance = 'No') clusters(i)%points(j)%y
             else
-               write (2, '(F12.7)') clusters(i)%points(j)%y
+               write (2, '(F12.7,3X)', Advance = 'No') clusters(i)%points(j)%y
+            end if
+            if (abs(clusters(i)%points(j)%z) < 0.1 .or. abs(clusters(i)%points(j)%z) > 1e6) then
+               write (2, '(ES13.7)') clusters(i)%points(j)%z
+            else
+               write (2, '(F12.7)') clusters(i)%points(j)%z
             end if
             pointcount = pointcount + 1
          end do
@@ -223,8 +229,8 @@ program dbscan_2D
    write (*,'(A16)') "Writing complete"
    write (*,*)
 
-   101 Format(I5,1X,I5,ES13.7,A1)
-   102 Format(I5,1X,I5,F12.7,A1)
+   101 Format(I5,1X,I5,3X,ES13.7,3X)
+   102 Format(I5,1X,I5,3X,F12.7,3X)
 
 contains
 
@@ -320,7 +326,7 @@ subroutine appendCluster(list, newCluster)
    end if
 end subroutine appendCluster
 
-! This function finds the square of the distance between two points
+! This function finds the distance between two points
 function dist(pointA, pointB)
    use MyPoints
    use MyClusters
@@ -329,6 +335,7 @@ function dist(pointA, pointB)
    real :: dist
    dist = ((pointB%x - pointA%x) ** 2)
    dist = dist + ((pointB%y - pointA%y) ** 2)
+   dist = dist + ((pointB%z - pointA%z) ** 2)
    dist = sqrt(dist)
 end function dist
 
