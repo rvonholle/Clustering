@@ -27,6 +27,7 @@ program dbscan_2D
    type(Cluster), allocatable :: clusters(:)
    type(Cluster) :: tempCluster, tempCluster_2
    real, dimension(:,:), allocatable :: dists(:,:)
+   real, allocatable :: tempDists(:)
    character(len=100) :: dataFile, clusteredFile
    integer :: numData, numPoints, numClusters, numChecked, temp, pointcount, i, j, k
    integer :: n
@@ -68,6 +69,8 @@ program dbscan_2D
 !   write (*,*) EPS
 
 ! Find the cores
+   write (*,*)
+   write (*,'(A16)') "Finding cores..."
    do i = 1, numData
       temp = 0
       do j = 1, numData
@@ -79,6 +82,7 @@ program dbscan_2D
          points(i)%isCore = .true.
       end if
    end do
+   write (*,'(A11)') "Cores found"
 
 ! Cluster the points
    write (*,*)
@@ -94,7 +98,7 @@ program dbscan_2D
          call appendPoint(tempCluster%points, points(i))
          do j = 1, numData
             if (points(j)%isCore .and. i /= j .and. points(j)%unChecked .and. &
-                  dists(i,j) <= EPS) then
+                  dists(i,j) <= EPS .and. size(tempCluster%points) < MAXSIZE) then
                points(j)%unchecked = .false.
                numChecked = numChecked + 1
                points(j)%clID = points(i)%clID
@@ -106,7 +110,8 @@ program dbscan_2D
             temp = size(tempCluster%points)
             do j = 1, temp
                do k = 1, numData
-                  if (points(k)%unChecked .and. dists(tempCluster%points(j)%orig_pos,k)<=EPS) then
+                  if (points(k)%unChecked .and. dists(tempCluster%points(j)%orig_pos,k) <= EPS &
+                     .and. size(tempCluster%points) < MAXSIZE) then
                      points(k)%unChecked = .false.
                      numChecked = numChecked + 1
                      points(k)%clID = tempCluster%points(j)%clID
@@ -126,18 +131,6 @@ program dbscan_2D
                   points(j)%clID = 0
                end do
                deallocate(tempCluster%points)
-            else if (size(tempCluster%points) == MAXSIZE) then
-               contCluster = .false.
-               call appendCluster(clusters, tempCluster)
-               deallocate(tempCluster%points)
-            else if (size(tempCluster%points) > MAXSIZE) then
-               contCluster = .false.
-               allocate(tempCluster_2%points(temp))
-               do j = 1, temp
-                  tempCluster_2%points(j) = tempCluster%points(j)
-               end do
-               call appendCluster(clusters, tempCluster_2)
-               deallocate(tempCluster_2%points)
             end if
          end do
       end if
@@ -156,6 +149,22 @@ program dbscan_2D
       end do
    end do
    write (*,'(A19)') "Clustering complete"
+
+! Add the outliers
+   do i = 1, numData
+      if (points(i)%clID == 0) then
+         allocate(tempDists(numData))
+         do j = 1, numData
+            tempDists(j) = dists(i,j)
+         end do
+         do while (points(minloc(tempDists,1))%clID == 0)
+            tempDists(minloc(tempDists,1)) = maxval(tempDists,1)
+         end do
+         points(i)%clID = points(minloc(tempDists,1))%clID
+         call appendPoint(clusters(points(i)%clID)%points, points(i))
+         deallocate(tempDists)
+      end if
+   end do
 
 ! Write the clusters
    write (*,*)
@@ -194,28 +203,29 @@ program dbscan_2D
          end do
       end do
 !      write (2,'(A9)') "Outliers:"
-      pointcount = 1
-      do i = 1, numData
-         if (points(i)%clID == 0 .and. .not. points(i)%isCore) then
-            if (abs(points(i)%x) < 0.1 .or. abs(points(i)%x) > 1e6) then
-               write (2, 101, Advance = 'No') pointcount, 0, points(i)%x, ","
-            else
-               write (2, 102, Advance = 'No') pointcount, 0, points(i)%x, ","
-            end if
-            if (abs(points(i)%y) < 0.1 .or. abs(points(i)%y) > 1e6) then
-               write (2, '(ES13.7)') points(i)%y
-            else
-               write (2, '(F12.7)') points(i)%y
-            end if
-            pointcount = pointcount + 1
-         end if
-      end do
-   end if
+!      pointcount = 1
+!      do i = 1, numData
+!         if (points(i)%clID == 0 .and. .not. points(i)%isCore) then
+!            if (abs(points(i)%x) < 0.1 .or. abs(points(i)%x) > 1e6) then
+!               write (2, 101, Advance = 'No') pointcount, 0, points(i)%x, ","
+!            else
+!               write (2, 102, Advance = 'No') pointcount, 0, points(i)%x, ","
+!            end if
+!            if (abs(points(i)%y) < 0.1 .or. abs(points(i)%y) > 1e6) then
+!               write (2, '(ES13.7)') points(i)%y
+!            else
+!               write (2, '(F12.7)') points(i)%y
+!            end if
+!            pointcount = pointcount + 1
+!         end if
+!      end do
+!   end if
    write (*,'(A16)') "Writing complete"
    write (*,*)
 
    101 Format(I5,1X,I5,ES13.7,A1)
    102 Format(I5,1X,I5,F12.7,A1)
+
 contains
 
 ! This subroutine sorts a list of real numbers
@@ -319,6 +329,7 @@ function dist(pointA, pointB)
    real :: dist
    dist = ((pointB%x - pointA%x) ** 2)
    dist = dist + ((pointB%y - pointA%y) ** 2)
+   dist = sqrt(dist)
 end function dist
 
 ! This function determines the optimal value of epsilon
@@ -334,42 +345,24 @@ function epsPick(points, MINPTS, allDists)
    real, allocatable :: comps(:)
    integer :: i, j
    real :: lineMaker
-!   allocate(allDists(size(points),size(points) - 1))
    allocate(dists(size(points)))
    allocate(allDists(size(points),size(points)))
+   write (*,'(A25)') "Creating distance list..."
    do i = 1, size(points)
       do j = 1, size(points)
          allDists(i,j) = dist(points(i), points(j))
       end do
+      if (floor(100.0 * i / size(points)) == 25 .and. &
+         floor(100.0 * (i - 1) / size(points)) /= 25) then
+         write (*,'(A26)') "Distance list 25% complete"
+      else if (floor(100.0 * i / size(points)) == 50 .and. &
+         floor(100.0 * (i - 1) / size(points)) /= 50) then
+         write (*,'(A26)') "Distance list 50% complete"
+      else if (floor(100.0 * i / size(points)) == 75 .and. &
+         floor(100.0 * (i - 1) / size(points)) /= 75) then
+         write (*,'(A26)') "Distance list 75% complete"
+      end if
    end do
-!   do i = 1, size(points)
-!      allocate(tempDists(size(points) - 1))
-!      do j = 1, i - 1
-!         tempDists(j) = allDists(j,i)
-!      end do
-!      do j = i + 1, size(points)
-!         tempDists(j - 1) = sqrt(dist(points(i), points(j)))
-!      end do
-!      do j = 1, size(tempDists)
-!         allDists(i,j) = tempDists(j)
-!      end do
-!      call sortReals(tempDists, 1, size(tempDists))
-!      dists(i) = tempDists(MINPTS)
-!      do j = 1, size(tempDists)
-!         allDists(i,j) = tempDists(j)
-!      end do
-!      deallocate(tempDists)
-!      if (nint(100.0 * i / size(points)) == 25 .and. &
-!            nint(100.0 * (i - 1) / size(points)) /= 25) then
-!         write (*,'(A26)') "Distance list 25% complete"
-!      else if (nint(100.0 * i / size(points)) == 50 .and. &
-!            nint(100.0 * (i - 1) / size(points)) /= 50) then
-!         write (*,'(A26)') "Distance list 50% complete"
-!      else if (nint(100.0 * i / size(points)) == 75 .and. &
-!            nint(100.0 * (i - 1) / size(points)) /= 75) then
-!         write (*,'(A26)') "Distance list 75% complete"
-!      end if
-!   end do
    do i = 1, size(points)
       allocate(tempDists(size(points)))
       do j = 1, size(points)
@@ -381,8 +374,10 @@ function epsPick(points, MINPTS, allDists)
       dists(i) = minval(tempDists)
       deallocate(tempDists)
    end do
+   write (*,'(A22)') "Distance list complete"
+   write (*,'(A24)') "Sorting distance list..."
    call sortReals(dists, 1, size(dists))
-   write (*,'(A22)') "Distance list created."
+   write (*,'(A20)') "Distance list sorted"
    lineMaker = (dists(size(dists)) - dists(1)) / size(dists)
    allocate(comps(size(dists)))
    do i = 1, size(dists)
