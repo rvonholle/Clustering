@@ -25,10 +25,10 @@ program dbscan_2D
 
    type(Point), allocatable :: points(:)
    type(Cluster), allocatable :: clusters(:)
-   type(Cluster) :: tempCluster
+   type(Cluster) :: tempCluster, tempCluster_2
    real, dimension(:,:), allocatable :: dists(:,:)
    character(len=100) :: dataFile, clusteredFile
-   integer :: numData,  numClusters, numChecked, temp, pointcount, i, j, k
+   integer :: numData, numPoints, numClusters, numChecked, temp, pointcount, i, j, k
    integer :: n
    type(Point) :: origin
    real :: EPS
@@ -65,6 +65,7 @@ program dbscan_2D
    write (*,'(A31)') "Generating EPSILON parameter..."
    EPS = epsPick(points, MINPTS, dists)
    write (*,'(A27)') "EPSILON parameter generated"
+!   write (*,*) EPS
 
 ! Find the cores
    do i = 1, numData
@@ -93,7 +94,7 @@ program dbscan_2D
          call appendPoint(tempCluster%points, points(i))
          do j = 1, numData
             if (points(j)%isCore .and. i /= j .and. points(j)%unChecked .and. &
-                  dists(i,j) <= EPS .and. size(tempCluster%points) < MAXSIZE) then
+                  dists(i,j) <= EPS) then
                points(j)%unchecked = .false.
                numChecked = numChecked + 1
                points(j)%clID = points(i)%clID
@@ -105,8 +106,7 @@ program dbscan_2D
             temp = size(tempCluster%points)
             do j = 1, temp
                do k = 1, numData
-                  if (points(k)%unChecked .and. dists(tempCluster%points(j)%orig_pos,k) <= EPS &
-                        .and. size(tempCluster%points) <= MAXSIZE) then
+                  if (points(k)%unChecked .and. dists(tempCluster%points(j)%orig_pos,k)<=EPS) then
                      points(k)%unChecked = .false.
                      numChecked = numChecked + 1
                      points(k)%clID = tempCluster%points(j)%clID
@@ -126,6 +126,18 @@ program dbscan_2D
                   points(j)%clID = 0
                end do
                deallocate(tempCluster%points)
+            else if (size(tempCluster%points) == MAXSIZE) then
+               contCluster = .false.
+               call appendCluster(clusters, tempCluster)
+               deallocate(tempCluster%points)
+            else if (size(tempCluster%points) > MAXSIZE) then
+               contCluster = .false.
+               allocate(tempCluster_2%points(temp))
+               do j = 1, temp
+                  tempCluster_2%points(j) = tempCluster%points(j)
+               end do
+               call appendCluster(clusters, tempCluster_2)
+               deallocate(tempCluster_2%points)
             end if
          end do
       end if
@@ -134,7 +146,7 @@ program dbscan_2D
       do j = 1, size(clusters)
          do k = 1, size(clusters(j)%points)
             if (points(i)%unChecked .and. dists(i,clusters(j)%points(k)%orig_pos) <= EPS &
-                  .and. size(clusters(j)%points) < MAXSIZE .and. .not. points(i)%isCore) then
+                  .and. .not. points(i)%isCore) then
                points(i)%unChecked = .false.
                points(i)%clID = clusters(j)%points(k)%clID
                call appendPoint(clusters(j)%points, points(i))
@@ -322,35 +334,52 @@ function epsPick(points, MINPTS, allDists)
    real, allocatable :: comps(:)
    integer :: i, j
    real :: lineMaker
-   allocate(allDists(size(points),size(points) - 1))
+!   allocate(allDists(size(points),size(points) - 1))
    allocate(dists(size(points)))
+   allocate(allDists(size(points),size(points)))
    do i = 1, size(points)
-      allocate(tempDists(size(points) - 1))
-      do j = 1, i - 1
-         tempDists(j) = allDists(j,i)
+      do j = 1, size(points)
+         allDists(i,j) = dist(points(i), points(j))
       end do
-      do j = i + 1, size(points)
-         tempDists(j - 1) = sqrt(dist(points(i), points(j)))
+   end do
+!   do i = 1, size(points)
+!      allocate(tempDists(size(points) - 1))
+!      do j = 1, i - 1
+!         tempDists(j) = allDists(j,i)
+!      end do
+!      do j = i + 1, size(points)
+!         tempDists(j - 1) = sqrt(dist(points(i), points(j)))
+!      end do
+!      do j = 1, size(tempDists)
+!         allDists(i,j) = tempDists(j)
+!      end do
+!      call sortReals(tempDists, 1, size(tempDists))
+!      dists(i) = tempDists(MINPTS)
+!      do j = 1, size(tempDists)
+!         allDists(i,j) = tempDists(j)
+!      end do
+!      deallocate(tempDists)
+!      if (nint(100.0 * i / size(points)) == 25 .and. &
+!            nint(100.0 * (i - 1) / size(points)) /= 25) then
+!         write (*,'(A26)') "Distance list 25% complete"
+!      else if (nint(100.0 * i / size(points)) == 50 .and. &
+!            nint(100.0 * (i - 1) / size(points)) /= 50) then
+!         write (*,'(A26)') "Distance list 50% complete"
+!      else if (nint(100.0 * i / size(points)) == 75 .and. &
+!            nint(100.0 * (i - 1) / size(points)) /= 75) then
+!         write (*,'(A26)') "Distance list 75% complete"
+!      end if
+!   end do
+   do i = 1, size(points)
+      allocate(tempDists(size(points)))
+      do j = 1, size(points)
+         tempDists(j) = allDists(i,j)
       end do
-      do j = 1, size(tempDists)
-         allDists(i,j) = tempDists(j)
+      do j = 1, MINPTS
+         tempDists(minloc(tempDists)) = maxval(tempDists)
       end do
-      call sortReals(tempDists, 1, size(tempDists))
-      dists(i) = tempDists(MINPTS)
-      do j = 1, size(tempDists)
-         allDists(i,j) = tempDists(j)
-      end do
+      dists(i) = minval(tempDists)
       deallocate(tempDists)
-      if (floor(100.0 * i / size(points)) == 25 .and. &
-            floor(100.0 * (i - 1) / size(points)) /= 25) then
-         write (*,'(A26)') "Distance list 25% complete"
-      else if (floor(100.0 * i / size(points)) == 50 .and. &
-            floor(100.0 * (i - 1) / size(points)) /= 50) then
-         write (*,'(A26)') "Distance list 50% complete"
-      else if (floor(100.0 * i / size(points)) == 75 .and. &
-            floor(100.0 * (i - 1) / size(points)) /= 75) then
-         write (*,'(A26)') "Distance list 75% complete"
-      end if
    end do
    call sortReals(dists, 1, size(dists))
    write (*,'(A22)') "Distance list created."
