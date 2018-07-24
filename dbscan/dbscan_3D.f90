@@ -22,7 +22,7 @@ program dbscan_2D
    use MyClusters
    implicit none
    integer, parameter :: MAXSIZE = 4000
-   integer, parameter :: MINPTS = 4
+   integer, parameter :: MINPTS = 5
 
    type(Point), allocatable :: points(:)
    type(Cluster), allocatable :: clusters(:)
@@ -75,7 +75,7 @@ program dbscan_2D
    do i = 1, numData
       temp = 0
       do j = 1, numData
-         if (dists(i,j) <= EPS) then
+         if (dists(j,i) <= EPS) then
             temp = temp + 1
          end if
       end do
@@ -97,9 +97,18 @@ program dbscan_2D
          points(i)%clID = numClusters
          numClusters = numClusters + 1
          call appendPoint(tempCluster%points, points(i))
-         do j = 1, numData
-            if (points(j)%isCore .and. i /= j .and. points(j)%unChecked .and. &
-                  dists(i,j) <= EPS .and. size(tempCluster%points) < MAXSIZE) then
+         do j = 1, i - 1
+            if (points(j)%isCore .and. points(j)%unChecked .and. &
+                  dists(j,i) <= EPS) then ! .and. size(tempCluster%points) < MAXSIZE) then
+               points(j)%unchecked = .false.
+               numChecked = numChecked + 1
+               points(j)%clID = points(i)%clID
+               call appendPoint(tempCluster%points, points(j))
+            end if
+         end do
+         do j = i + 1, numData
+            if (points(j)%isCore .and. points(j)%unChecked .and. &
+                  dists(j,i) <= EPS) then ! .and. size(tempCluster%points) < MAXSIZE) then
                points(j)%unchecked = .false.
                numChecked = numChecked + 1
                points(j)%clID = points(i)%clID
@@ -111,8 +120,8 @@ program dbscan_2D
             temp = size(tempCluster%points)
             do j = 1, temp
                do k = 1, numData
-                  if (points(k)%unChecked .and. dists(tempCluster%points(j)%orig_pos,k) <= EPS &
-                     .and. size(tempCluster%points) < MAXSIZE) then
+                  if (points(k)%unChecked .and. dists(k,tempCluster%points(j)%orig_pos) <= EPS) then ! &
+                        ! .and. size(tempCluster%points) < MAXSIZE) then
                      points(k)%unChecked = .false.
                      numChecked = numChecked + 1
                      points(k)%clID = tempCluster%points(j)%clID
@@ -139,7 +148,7 @@ program dbscan_2D
    do i = 1, numData
       do j = 1, size(clusters)
          do k = 1, size(clusters(j)%points)
-            if (points(i)%unChecked .and. dists(i,clusters(j)%points(k)%orig_pos) <= EPS &
+            if (points(i)%unChecked .and. dists(clusters(j)%points(k)%orig_pos,i) <= EPS &
                   .and. .not. points(i)%isCore) then
                points(i)%unChecked = .false.
                points(i)%clID = clusters(j)%points(k)%clID
@@ -156,7 +165,7 @@ program dbscan_2D
       if (points(i)%clID == 0) then
          allocate(tempDists(numData))
          do j = 1, numData
-            tempDists(j) = dists(i,j)
+            tempDists(j) = dists(j,i)
          end do
          do while (points(minloc(tempDists,1))%clID == 0)
             tempDists(minloc(tempDists,1)) = maxval(tempDists,1)
@@ -190,21 +199,9 @@ program dbscan_2D
          pointcount = 1
 !         write (2,'(A7,I4,A1)') "Cluster", i, ":"
          do j = 1, size(clusters(i)%points)
-            if (abs(clusters(i)%points(j)%x) < 0.1 .or. abs(clusters(i)%points(j)%x) > 1e6) then
-               write (2, 101, Advance = 'No') pointcount, i, clusters(i)%points(j)%x
-            else
-               write (2, 102, Advance = 'No') pointcount, i, clusters(i)%points(j)%x
-            end if
-            if (abs(points(j)%y) < 0.1 .or. abs(points(j)%y) > 1e6) then
-               write (2, '(ES13.7,3X)', Advance = 'No') clusters(i)%points(j)%y
-            else
-               write (2, '(F12.7,3X)', Advance = 'No') clusters(i)%points(j)%y
-            end if
-            if (abs(clusters(i)%points(j)%z) < 0.1 .or. abs(clusters(i)%points(j)%z) > 1e6) then
-               write (2, '(ES13.7)') clusters(i)%points(j)%z
-            else
-               write (2, '(F12.7)') clusters(i)%points(j)%z
-            end if
+            write (2, 101, Advance = 'No') pointcount, i, clusters(i)%points(j)%x
+            write (2, '(ES17.7,3X)', Advance = 'No') clusters(i)%points(j)%y
+            write (2, '(ES17.7)') clusters(i)%points(j)%z
             pointcount = pointcount + 1
          end do
       end do
@@ -229,7 +226,7 @@ program dbscan_2D
    write (*,'(A16)') "Writing complete"
    write (*,*)
 
-   101 Format(I5,1X,I5,3X,ES13.7,3X)
+   101 Format(I5,1X,I5,3X,ES17.7,3X)
    102 Format(I5,1X,I5,3X,F12.7,3X)
 
 contains
@@ -357,7 +354,7 @@ function epsPick(points, MINPTS, allDists)
    write (*,'(A25)') "Creating distance list..."
    do i = 1, size(points)
       do j = 1, size(points)
-         allDists(i,j) = dist(points(i), points(j))
+         allDists(j,i) = dist(points(j), points(i))
       end do
       if (floor(100.0 * i / size(points)) == 25 .and. &
          floor(100.0 * (i - 1) / size(points)) /= 25) then
@@ -373,7 +370,7 @@ function epsPick(points, MINPTS, allDists)
    do i = 1, size(points)
       allocate(tempDists(size(points)))
       do j = 1, size(points)
-         tempDists(j) = allDists(i,j)
+         tempDists(j) = allDists(j,i)
       end do
       do j = 1, MINPTS
          tempDists(minloc(tempDists)) = maxval(tempDists)
