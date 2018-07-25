@@ -30,11 +30,10 @@ program dbscan_2D
    real, dimension(:,:), allocatable :: dists(:,:)
    real, allocatable :: tempDists(:)
    character(len=100) :: dataFile, clusteredFile
-   integer :: numData, numPoints, numClusters, numChecked, temp, pointcount, i, j, k
+   integer :: numData, numCores, numClusters, numChecked, temp, pointcount, i, j, k
    integer :: n
    type(Point) :: origin
    real :: EPS
-   logical :: allPointsChecked = .false.
    logical :: contCluster = .true.
 
 ! This program clusters points in a three-dimensional region
@@ -70,6 +69,7 @@ program dbscan_2D
 !   write (*,*) EPS
 
 ! Find the cores
+   numCores = 0
    write (*,*)
    write (*,'(A16)') "Finding cores..."
    do i = 1, numData
@@ -81,6 +81,7 @@ program dbscan_2D
       end do
       if (temp >= MINPTS) then
          points(i)%isCore = .true.
+         numCores = numCores + 1
       end if
    end do
    write (*,'(A11)') "Cores found"
@@ -99,20 +100,24 @@ program dbscan_2D
          call appendPoint(tempCluster%points, points(i))
          do j = 1, i - 1
             if (points(j)%isCore .and. points(j)%unChecked .and. &
-                  dists(j,i) <= EPS) then ! .and. size(tempCluster%points) < MAXSIZE) then
+                  dists(j,i) <= EPS .and. size(tempCluster%points) < MAXSIZE) then
                points(j)%unchecked = .false.
                numChecked = numChecked + 1
                points(j)%clID = points(i)%clID
                call appendPoint(tempCluster%points, points(j))
+            else if (size(tempCluster%points) >= MAXSIZE) then
+               exit
             end if
          end do
          do j = i + 1, numData
             if (points(j)%isCore .and. points(j)%unChecked .and. &
-                  dists(j,i) <= EPS) then ! .and. size(tempCluster%points) < MAXSIZE) then
+                  dists(j,i) <= EPS .and. size(tempCluster%points) < MAXSIZE) then
                points(j)%unchecked = .false.
                numChecked = numChecked + 1
                points(j)%clID = points(i)%clID
                call appendPoint(tempCluster%points, points(j))
+            else if (size(tempCluster%points) >= MAXSIZE) then
+               exit
             end if
          end do
          contCluster = .true.
@@ -120,12 +125,14 @@ program dbscan_2D
             temp = size(tempCluster%points)
             do j = 1, temp
                do k = 1, numData
-                  if (points(k)%unChecked .and. dists(k,tempCluster%points(j)%orig_pos) <= EPS) then ! &
-                        ! .and. size(tempCluster%points) < MAXSIZE) then
+                  if (points(k)%unChecked .and. dists(k,tempCluster%points(j)%orig_pos) <= EPS  &
+                         .and. size(tempCluster%points) < MAXSIZE) then
                      points(k)%unChecked = .false.
                      numChecked = numChecked + 1
                      points(k)%clID = tempCluster%points(j)%clID
                      call appendPoint(tempCluster%points, points(k))
+                  else if (size(tempCluster%points) >= MAXSIZE) then
+                     exit
                   end if
                end do
             end do
@@ -143,6 +150,9 @@ program dbscan_2D
                deallocate(tempCluster%points)
             end if
          end do
+      end if
+      if (numChecked == numCores) then
+         exit
       end if
    end do
    do i = 1, numData
