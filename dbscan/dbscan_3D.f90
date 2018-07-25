@@ -78,6 +78,9 @@ program dbscan_2D
          if (dists(j,i) <= EPS) then
             temp = temp + 1
          end if
+         if (temp >= MINPTS) then
+            exit
+         end if
       end do
       if (temp >= MINPTS) then
          points(i)%isCore = .true.
@@ -215,23 +218,6 @@ program dbscan_2D
             pointcount = pointcount + 1
          end do
       end do
-!      write (2,'(A9)') "Outliers:"
-!      pointcount = 1
-!      do i = 1, numData
-!         if (points(i)%clID == 0 .and. .not. points(i)%isCore) then
-!            if (abs(points(i)%x) < 0.1 .or. abs(points(i)%x) > 1e6) then
-!               write (2, 101, Advance = 'No') pointcount, 0, points(i)%x, ","
-!            else
-!               write (2, 102, Advance = 'No') pointcount, 0, points(i)%x, ","
-!            end if
-!            if (abs(points(i)%y) < 0.1 .or. abs(points(i)%y) > 1e6) then
-!               write (2, '(ES13.7)') points(i)%y
-!            else
-!               write (2, '(F12.7)') points(i)%y
-!            end if
-!            pointcount = pointcount + 1
-!         end if
-!      end do
    end if
    write (*,'(A16)') "Writing complete"
    write (*,*)
@@ -357,26 +343,38 @@ function epsPick(points, MINPTS, allDists)
    real, allocatable :: tempDists(:)
    real, allocatable :: dists(:)
    real, allocatable :: comps(:)
-   integer :: i, j
+   integer :: temp, i, j
    real :: lineMaker
    allocate(dists(size(points)))
    allocate(allDists(size(points),size(points)))
    write (*,'(A25)') "Creating distance list..."
-   do i = 1, size(points)
+   temp = floor(25 * size(points) / 100.0)
+   do i = 1, temp
       do j = 1, size(points)
          allDists(j,i) = dist(points(j), points(i))
       end do
-      if (floor(100.0 * i / size(points)) == 25 .and. &
-         floor(100.0 * (i - 1) / size(points)) /= 25) then
-         write (*,'(A26)') "Distance list 25% complete"
-      else if (floor(100.0 * i / size(points)) == 50 .and. &
-         floor(100.0 * (i - 1) / size(points)) /= 50) then
-         write (*,'(A26)') "Distance list 50% complete"
-      else if (floor(100.0 * i / size(points)) == 75 .and. &
-         floor(100.0 * (i - 1) / size(points)) /= 75) then
-         write (*,'(A26)') "Distance list 75% complete"
-      end if
    end do
+   write (*,'(A26)') "Distance list 25% complete"
+   temp = floor(50 * size(points) / 100.0)
+   do i = floor(25 * size(points) / 100.0) + 1, temp
+      do j = 1, size(points)
+         allDists(j,i) = dist(points(j), points(i))
+      end do
+   end do
+   write (*,'(A26)') "Distance list 50% complete"
+   temp = floor(75 * size(points) / 100.0)
+   do i = floor(50 * size(points) / 100.0), temp
+      do j = 1, size(points)
+         allDists(j,i) = dist(points(j), points(i))
+      end do
+   end do
+   write (*,'(A26)') "Distance list 75% complete"
+   do i = temp + 1, size(points)
+      do j = 1, size(points)
+         allDists(j,i) = dist(points(j), points(i))
+      end do
+   end do
+   write (*,'(A22)') "Distance list complete"
    do i = 1, size(points)
       allocate(tempDists(size(points)))
       do j = 1, size(points)
@@ -388,7 +386,6 @@ function epsPick(points, MINPTS, allDists)
       dists(i) = minval(tempDists)
       deallocate(tempDists)
    end do
-   write (*,'(A22)') "Distance list complete"
    write (*,'(A24)') "Sorting distance list..."
    call sortReals(dists, 1, size(dists))
    write (*,'(A20)') "Distance list sorted"
