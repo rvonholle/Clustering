@@ -22,7 +22,7 @@ program dbscan_2D
    use MyClusters
    implicit none
    integer, parameter :: MAXSIZE = 4000
-   integer, parameter :: MINPTS = 5
+   integer, parameter :: MINPTS = 8
 
    type(Point), allocatable :: points(:)
    type(Cluster), allocatable :: clusters(:)
